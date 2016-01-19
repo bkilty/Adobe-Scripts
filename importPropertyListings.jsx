@@ -17,7 +17,7 @@ function getPropertyListings()
 		}
 	
 	return myJSONObject;
-	}
+}
 	
 
 	

@@ -1,5 +1,5 @@
 ﻿#include "importPropertyListings.jsx"
-//#include "json2.js"
+#include "listingElements.jsx"
 
 var myDocument = app.activeDocument;
 //var myDocument = app.documents.item(0);
@@ -16,11 +16,33 @@ myData = getPropertyListings();
 //set the folder to get propertyimages from
 var projectFolder = "C:/TheBroker/^AutomatedBrokerTesting/";
 
-var myCurrentPageItems = myPage.allPageItems;
-var myArrayLength = myCurrentPageItems.length;
+
+// Get the current property listings that are in the active document
+
+var propertiesLayer = myDocument.layers.itemByName("Text and Images");
+var existingPageItem = propertiesLayer.allPageItems;
+var existingPropertyIndex = [];
+var existingPropertyData = [];
+var existingLabel = [];
+var nProp = 0; //count the number of property elements in the current document
+for(var i = 0; i < existingPageItem.length; i++){
+	if(readVisibleLabelVariable(existingPageItem[i],"objType") === "propertyListing")
+	{
+		nProp++;
+		existingPropertyIndex[nProp-1] = i;
+		existingPropertyData[nProp-1] = getDataFromHiddenLabel(existingPageItem[i],"propertyData");
+		
+	}
+	
+}
+
+
+//determine properties to be deleted
+
+
+//determine if the updatedListings are new or updates
 
 //Get the listing margins
-
 var myMarginPreferences = app.activeWindow.activePage.marginPreferences;
 var listingSpaceBounds = {
     left : myMarginPreferences.left,
@@ -30,7 +52,29 @@ var listingSpaceBounds = {
     };
 var gutter = myMarginPreferences.columnGutter;
 
+//Find the page the ad space starts on
+var adBoundLayer = myDocument.layers.itemByName("AdBounds");
+var existingAdBound = adBoundLayer.allPageItems;
+for( i = 0; i<existingAdBound.length; i++){
+	if(existingAdBound[i].label === "adNewman"){
+		listingSpaceBounds = {
+    left : existingAdBound[i].geometricBounds[1],
+    right: existingAdBound[i].geometricBounds[3],
+    top: existingAdBound[i].geometricBounds[0],
+    bottom: existingAdBound[i].geometricBounds[2]
+    };
+		
+	}
+}
+
+		
+/*
 //refine the margins for listings according to the header element
+var manualPlacementLayer = myDocument.layers.itemByName("ManualObjectPlacement");
+var existingPageItem = manualPlacementLayer.allPageItems;
+var myCurrentPageItems = myPage.allPageItems;
+var myArrayLength = myCurrentPageItems.length;
+
 for( i = 0; i<myArrayLength; i++){
 	if(myCurrentPageItems[i].label === "Newman_Header_1"){
 		myCurrentPageItems[i].label = "Newman_Header_1";
@@ -54,7 +98,36 @@ for( i = 0; i<myArrayLength; i++){
 
 
 }
+*/
 
+/*
+//FIND THE Designated Ad Space
+var adLayer = myDocument.layers.itemByName("AdMargins");
+var adIndex = [];
+var adSpaceCount = 0; // multipage ads will have multiple adSpaces to index
+var adName = "adNewman";
+var ads = adLayer.allPageItems; 
+//scan the array for the matching object
+for(var i = 0; i < ads.length;i++){
+	
+	if(ads[i] === adName){
+		adIndex[adSpaceCount++] = i;
+	}
+}
+
+if(adIndex.length === 0)
+{
+	alert("Ad " + adName + " not found, would you like to add a new page?");
+}
+
+var adPages = []; //what page numbers contain the designated ad space
+
+for( var i = 0; i<adIndex.length; i++){}
+
+
+myCurrentPageItems[i].label === "Newman_Header_1"
+
+*/
 
 
 
@@ -129,9 +202,13 @@ var imageBounds = [];
 var textBounds = [];
 var bannerBounds = [];
 
+var foo = null; // temporary variable to send values to alert
+var existingProperties = [];// testing if I can go back and forth between string and object
+
 
 //myDocument.layers.add();
 var currentLayer = myDocument.layers.itemByName("Text and Images");
+
 
 
 //place the property on the page
@@ -142,9 +219,16 @@ for (var i = 0; i < myRows; i++){
 		var myPropertyElement = [];
 		var noImageFlag = false;
 		var elementCount = 0;
+		var matches = [];
 		myCurrentPropertyData = myData.propertyListing[myPropertyCount];
 		
-		if(myPropertyCount < myData.propertyListing.length){
+		//check to see if the element is already on the page
+		if(myPropertyCount < myData.propertyListing.length && existingPropertyData.length > 0){
+			matches = searchArrayOfHiddenLabels(existingPropertyData, "id", myData.propertyListing[myPropertyCount].id);			
+		}
+		
+		
+		if(myPropertyCount < myData.propertyListing.length && matches.length === 0 ){
 			//calculate the geometric bounds of the text box
 			topY = listingSpaceBounds.top + (boxHeight + gutter)*i;
 			topX = listingSpaceBounds.left + (boxWidth + gutter)*j; 
@@ -189,20 +273,32 @@ for (var i = 0; i < myRows; i++){
 				myPropertyElement[elementCount].geometricBounds = bannerBounds;
 				myPropertyElement[elementCount].place(bannerRef, false);
 				myPropertyElement[elementCount].fit(FitOptions.PROPORTIONALLY);
-				myPropertyElement[elementCount].label = myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id + "_banner";
+				//myPropertyElement[elementCount].label = myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id + "_banner";
 				
 			}
 			
 			if(elementCount > 0){
 				myPropertyGroup = myPage.groups.add(myPropertyElement);
-				myPropertyGroup.label = myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id; 
-			}else{
-					myPropertyElement[elementCount].label = myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id;
+				storeDataInHiddenLabel(myPropertyGroup,"propertyData", myData.propertyListing[myPropertyCount]);
+				myPropertyGroup.label = "test";
+				encodeVisibleLabel(myPropertyGroup, "objType","propertyListing");
+				encodeVisibleLabel(myPropertyGroup, "id",myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id );
+				
+				
+				
+				
+			}else{ //Text Only object
+					myPropertyElement[elementCount].label = "automated, " + myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id;
+					storeDataInHiddenLabel(myPropertyElement[elementCount], "propertyData", myData.propertyListing[myPropertyCount]);
+					encodeVisibleLabel(myPropertyElement[elementCount], "objType","propertyListing");
+					encodeVisibleLabel(myPropertyElement[elementCount], "id",myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id );
+				
 			}
 		
-				
-			
-			}
+		}
 		myPropertyCount++;
-	}
+	}//end of  nested for loop
+
+//now lets read the property data from the file
+
 }

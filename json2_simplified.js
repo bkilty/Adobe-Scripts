@@ -224,7 +224,7 @@ if (typeof JSON !== 'object') {
 // sequences.
 
         rx_escapable.lastIndex = 0;
-		
+		/*
 	        return rx_escapable.test(string) 
             ? '"' + string.replace(rx_escapable, function (a) {
                 var c = meta[a];
@@ -233,8 +233,8 @@ if (typeof JSON !== 'object') {
                     : '\\u' + ('0000' + a.charCodeAt(0).toString(16)).slice(-4);
             }) + '"' 
             : '"' + string + '"';
-			
-		//return  '"' + string + '"';  //modified by Brennan
+			*/
+		return  '"' + string + '"';  //modified by Brennan
     }
 
 
