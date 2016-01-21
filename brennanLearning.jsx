@@ -18,7 +18,6 @@ var projectFolder = "C:/TheBroker/^AutomatedBrokerTesting/";
 
 
 // Get the current property listings that are in the active document
-
 var propertiesLayer = myDocument.layers.itemByName("Text and Images");
 var existingPageItem = propertiesLayer.allPageItems;
 var existingPropertyIndex = [];
@@ -31,16 +30,45 @@ for(var i = 0; i < existingPageItem.length; i++){
 		nProp++;
 		existingPropertyIndex[nProp-1] = i;
 		existingPropertyData[nProp-1] = getDataFromHiddenLabel(existingPageItem[i],"propertyData");
-		
 	}
 	
 }
 
 
 //determine properties to be deleted
+var modifyIndexObjArray = []; // index of properties
+var deleteIndex = [];
+var newIndex = [];
+
+var workIndexNew = []; // an array of objects that track what needs to be done on the objects created from myData
+var workIndexExisting = []; //track the index of the existing PageItem that matches indexed according to the workIndexNew array
+for(var i = 0; i < myData.propertyListing.length; i++) //intialize the array
+{
+	workIndexNew[i] = true; // until we know different, assume all are new
+	workIndexExisting[i] = null;
+}
+	
+// for each existing property see if it is listed in the myData object array
+for(var i = 0; i < nProp; i++){
+	//matchArray = searchArrayOfObjects(objectArray, variableName, value)
+	var matchArray = searchArrayOfObjects(myData.propertyListing, "id", existingPropertyData[i]["id"]);
+	//if length = 0 --> delete property
+	//if length = 1 --> modify property
+	switch(matchArray.length){
+		case 0: 
+			deleteIndex.push(i); // add the current existingPropertyData index to the delete index
+			break;
+		case 1: 
+			workIndexNew[matchArray[0]] = false; // there is a matching property ID therefore its not new
+			workIndexExisting[matchArray[0]] = i ; //track the index of the existing PageItem that matches 
+			break;
+		default:
+			alert("Duplicates found for a property " + existingPropertyData[i]["id"]);
+	}
+
+}
 
 
-//determine if the updatedListings are new or updates
 
 //Get the listing margins
 var myMarginPreferences = app.activeWindow.activePage.marginPreferences;
@@ -222,78 +250,171 @@ for (var i = 0; i < myRows; i++){
 		var matches = [];
 		myCurrentPropertyData = myData.propertyListing[myPropertyCount];
 		
-		//check to see if the element is already on the page
-		if(myPropertyCount < myData.propertyListing.length && existingPropertyData.length > 0){
-			matches = searchArrayOfHiddenLabels(existingPropertyData, "id", myData.propertyListing[myPropertyCount].id);			
-		}
-		
-		
-		if(myPropertyCount < myData.propertyListing.length && matches.length === 0 ){
-			//calculate the geometric bounds of the text box
+		//calculate the geometric bounds of the listing
 			topY = listingSpaceBounds.top + (boxHeight + gutter)*i;
 			topX = listingSpaceBounds.left + (boxWidth + gutter)*j; 
 			bottomY = topY + boxHeight;
 			bottomX = topX + boxWidth;  
 			//set the Geometric Bounds
 			propertyBounds = [topY, topX, bottomY, bottomX];
-			
+				
 			imageBounds = [topY, topX, bottomY - boxHeight/2, bottomX];
 			textBoxBounds = [bottomY - boxHeight/2, topX , bottomY, bottomX];
 			bannerBounds = [topY, topX, topY+boxHeight/4, topX+ boxWidth/4];
-						
 			
-			//add the property image
-			if(myData.propertyListing[myPropertyCount].image === ""){
-				textBoxBounds = propertyBounds;
-				noImageFlag = true;
-			}
-									
-			if(!noImageFlag){  //there is no image to place, so skip this block
-				myPropertyImagePath = projectFolder + "IMAGES/" + myCurrentPropertyData.image + ".jpg"; //path to the image
-				myPropertyElement[elementCount] = myPage.rectangles.add(currentLayer);
-				myPropertyElement[elementCount].geometricBounds = imageBounds;
-				myPropertyElement[elementCount].place(myPropertyImagePath, false, {geometricBounds: imageBounds});
-				myPropertyElement[elementCount].label = myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id + "_image";
-				elementCount++;
-			}
+		
+		if(myPropertyCount < myData.propertyListing.length && matches.length === 0 ){
 			
-			//Place the property Text
-			myPropertyElement[elementCount] = myPage.textFrames.add(currentLayer);
-			myPropertyElement[elementCount].geometricBounds = textBoxBounds;			
-			//set the TextFrams's label property so that we can find it later
-			myPropertyElement[elementCount].label = myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id + "_text"; 
-			myPropertyElement[elementCount].contents = myCurrentPropertyData.title + "\r" +  myCurrentPropertyData.description + "\r" +  myCurrentPropertyData.price + "\t" +  myCurrentPropertyData.contact;
+			var changeElement = {newProp: true, image: true, text: true, banner: true}; //assume new and that everything needs changed
 			
-			//Place any banners
-			if(myCurrentPropertyData.status !== "forSale" )
+			var iExist = null;
+			
+			if(!workIndexNew[myPropertyCount]) // the object is not new -- it already exists -- does it need to change or can it remain the same?
 			{
-				elementCount++;
-				bannerRef = projectFolder + "GRAPHICS/" + "sold.ai";
-				myPropertyElement[elementCount] = myPage.rectangles.add(currentLayer);
-				myPropertyElement[elementCount].geometricBounds = bannerBounds;
-				myPropertyElement[elementCount].place(bannerRef, false);
-				myPropertyElement[elementCount].fit(FitOptions.PROPORTIONALLY);
-				//myPropertyElement[elementCount].label = myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id + "_banner";
+				changeElement.newProp = false; // not a new property
 				
+				//determine how the property listing has changes (if at all)
+				iExist = workIndexExisting[myPropertyCount]; //index of matching  existingPropertyData object
+			
+				//what has changed (Image, text, price, contact, etc...)
+				var vName = ["title","description","price","contact","status","image"]; //note, it would be better if this wasn't a fixed array
+				var name = null;
+				var changeObj = {};
+				var bObjChange = false;
+				
+								
+				for(var n in vName){
+					name = vName[n];
+					if(existingPropertyData[iExist][name] === myData.propertyListing[myPropertyCount][name]){
+						changeObj[name] = false;
+					}else{
+						changeObj[name] = true;
+						bObjChange = true;
+					}
+				}
+				
+				if(bObjChange){
+					//change the object approriately
+					if(changeObj.title || changeObj.price || changeObj.contact || changeObj.description){
+						//change the text
+						changeElement.text = true;
+					}else{ 
+						changeElement.text = false; 
+					}
+					
+					if(changeObj.status){
+						//add, change, or remove banner
+						changeElement.banner = true;
+					}else{ 
+						changeElement.banner = false; 
+					}
+					
+					if(changeObj.image){
+						changeElement.image = true;
+					}else{ 
+						changeElement.image = false; 
+					}
+						
+				}
 			}
 			
-			if(elementCount > 0){
-				myPropertyGroup = myPage.groups.add(myPropertyElement);
-				storeDataInHiddenLabel(myPropertyGroup,"propertyData", myData.propertyListing[myPropertyCount]);
-				myPropertyGroup.label = "test";
-				encodeVisibleLabel(myPropertyGroup, "objType","propertyListing");
-				encodeVisibleLabel(myPropertyGroup, "id",myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id );
+			
+			if(changeElement.newProp === false) // existing property -- we will probably need to move, maybe resize, and maybe change text, image,  and or banner
+			{	
+				//get the corresponding page item index
+				var pageItemIndex = existingPropertyIndex[iExist]; //holds the index of the page item corresponding to a current existingPropertyDataObject
+				
+				storeDataInHiddenLabel(existingPageItem[pageItemIndex],"propertyData", myData.propertyListing[myPropertyCount]); //update the property data stored on the propertyListing Object
 				
 				
+				//move it to the current location
+				existingPageItem[pageItemIndex].move([propertyBounds[1],propertyBounds[0]]);
 				
+				//resize?
 				
-			}else{ //Text Only object
-					myPropertyElement[elementCount].label = "automated, " + myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id;
-					storeDataInHiddenLabel(myPropertyElement[elementCount], "propertyData", myData.propertyListing[myPropertyCount]);
-					encodeVisibleLabel(myPropertyElement[elementCount], "objType","propertyListing");
-					encodeVisibleLabel(myPropertyElement[elementCount], "id",myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id );
+				//change text?
+				//var existingPageItem = propertiesLayer.allPageItems;
+				var pageItemType = readVisibleLabelVariable(existingPageItem[pageItemIndex], "pageItemType");
 				
+				if(pageItemType === "group")
+				{
+					// get items in the group
+					var existingListingItems = existingPageItem[pageItemIndex].allPageItems; //get all of the elements in the group
+					
+					for(var ig = 0; ig < existingListingItems.length; ig++){
+						
+						if((readVisibleLabelVariable(existingListingItems[ig], "pageItemType") === "text") && changeElement.text){
+							existingListingItems[ig].contents = myCurrentPropertyData.title + "\r" +  myCurrentPropertyData.description + "\r" +  myCurrentPropertyData.price + "\t" +  myCurrentPropertyData.contact;
+						}
+					
+						if((readVisibleLabelVariable(existingListingItems[ig], "pageItemType") === "image") && changeElement.image){
+							myPropertyImagePath = projectFolder + "IMAGES/" + myCurrentPropertyData.image + ".jpg"; //path to the image
+							existingListingItems[ig].place(myPropertyImagePath, false, {geometricBounds: imageBounds});
+						}
+					}
+				}else if(pageItemType === "text"){
+					existingPageItem[pageItemIndex].contents = myCurrentPropertyData.title + "\r" +  myCurrentPropertyData.description + "\r" +  myCurrentPropertyData.price + "\t" +  myCurrentPropertyData.contact;
+				}
+					
 			}
+							
+			if(changeElement.newProp === true) // new property
+			{	
+				//add the property image
+				if(myData.propertyListing[myPropertyCount].image === ""){
+					textBoxBounds = propertyBounds;
+					noImageFlag = true;
+				}
+										
+				if(!noImageFlag){  //there is no image to place, so skip this block
+					myPropertyImagePath = projectFolder + "IMAGES/" + myCurrentPropertyData.image + ".jpg"; //path to the image
+					myPropertyElement[elementCount] = myPage.rectangles.add(currentLayer);
+					myPropertyElement[elementCount].geometricBounds = imageBounds;
+					myPropertyElement[elementCount].place(myPropertyImagePath, false, {geometricBounds: imageBounds});
+					encodeVisibleLabel(myPropertyElement[elementCount], "pageItemType","image");
+					elementCount++;
+				}
+				
+				//Place the property Text
+				myPropertyElement[elementCount] = myPage.textFrames.add(currentLayer);
+				myPropertyElement[elementCount].geometricBounds = textBoxBounds;			
+				//set the TextFrams's label property so that we can find it later
+				encodeVisibleLabel(myPropertyElement[elementCount], "pageItemType","text");
+				myPropertyElement[elementCount].contents = myCurrentPropertyData.title + "\r" +  myCurrentPropertyData.description + "\r" +  myCurrentPropertyData.price + "\t" +  myCurrentPropertyData.contact;
+				
+				//Place any banners
+				if(myCurrentPropertyData.status !== "forSale" )
+				{
+					elementCount++;
+					bannerRef = projectFolder + "GRAPHICS/" + "sold.ai";
+					myPropertyElement[elementCount] = myPage.rectangles.add(currentLayer);
+					myPropertyElement[elementCount].geometricBounds = bannerBounds;
+					myPropertyElement[elementCount].place(bannerRef, false);
+					myPropertyElement[elementCount].fit(FitOptions.PROPORTIONALLY);
+					encodeVisibleLabel(myPropertyElement[elementCount], "pageItemType","banner");
+					
+				}
+				
+				if(elementCount > 0){
+					myPropertyGroup = myPage.groups.add(myPropertyElement);
+					storeDataInHiddenLabel(myPropertyGroup,"propertyData", myData.propertyListing[myPropertyCount]);
+					myPropertyGroup.label = "test";
+					encodeVisibleLabel(myPropertyGroup, "objType","propertyListing");
+					encodeVisibleLabel(myPropertyGroup, "pageItemType","group");
+					encodeVisibleLabel(myPropertyGroup, "id",myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id );
+								
+				}else{ //Text Only object
+						myPropertyElement[elementCount].label = "automated, " + myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id;
+						storeDataInHiddenLabel(myPropertyElement[elementCount], "propertyData", myData.propertyListing[myPropertyCount]);
+						encodeVisibleLabel(myPropertyElement[elementCount], "objType","propertyListing");
+						encodeVisibleLabel(myPropertyElement[elementCount], "pageItemType","text");
+						encodeVisibleLabel(myPropertyElement[elementCount], "id",myData.propertyListing[myPropertyCount].agency + myData.propertyListing[myPropertyCount].id );
+				}
+			
+			} // end of new property block
+			
+			
+				
 		
 		}
 		myPropertyCount++;

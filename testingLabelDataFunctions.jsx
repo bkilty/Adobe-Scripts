@@ -7,12 +7,12 @@ var myDocument = app.documents.item(0);
 var myPage = myDocument.pages.item(0);
 
 
-mainTest(); //invoke the testing
+mainLabelTest(); //invoke the testing
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //mainTest proceedure function
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-function mainTest()
+function mainLabelTest()
 {
 	testVisibleLabelEncodeDecode();
 	testVisibleLabelSearch();
@@ -23,7 +23,7 @@ function mainTest()
 	if(errorCode !== null){
 		alert(errorCode);
 	}else{
-		alert("All tests passed");
+		alert("All Label Encoding, Decoding, and Search tests passed");
 	}
 
 
